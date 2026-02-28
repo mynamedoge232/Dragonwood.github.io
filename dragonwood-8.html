@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dragonwood</title>
+<!-- Firebase Realtime Database -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+body { font-family: Georgia, 'Times New Roman', serif; }
+:root {
+  --gold: #d4a017; --gold-lt: #f0c84a; --gold-dk: #8a6510;
+  --bg: #0b1a0b; --parch: #f0e2c0; --parch-dk: #c8a870;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; background:var(--bg); color:var(--parch); }
+.screen { display:none; min-height:100vh; }
+.screen.active { display:flex; }
+
+/* ══ LOBBY SCREENS ══ */
+#landing,#lobby-create,#lobby-join,#waiting {
+  flex-direction:column; align-items:center; justify-content:center;
+  padding:40px 20px;
+  background:radial-gradient(ellipse at 50% 30%,#1a3a1a,#0b1a0b 70%);
+}
+.logo { text-align:center; margin-bottom:32px; }
+.logo-icon { font-size:64px; display:block; margin-bottom:8px; }
+.logo h1 { font-size:clamp(32px,8vw,68px); letter-spacing:.15em; color:var(--gold-lt); text-shadow:0 0 28px rgba(212,160,23,.4),0 2px 0 #000; font-variant:small-caps; }
+.logo p  { font-size:12px; letter-spacing:.35em; color:var(--gold-dk); text-transform:uppercase; margin-top:5px; }
+
+.card-box {
+  background:linear-gradient(170deg,#1c3520,#0e1e10);
+  border:1px solid var(--gold-dk); border-radius:16px; padding:34px 42px;
+  width:100%; max-width:460px; box-shadow:0 20px 60px rgba(0,0,0,.6);
+}
+.card-box h2 { font-size:10px; letter-spacing:.3em; color:var(--gold-dk); text-transform:uppercase; margin-bottom:20px; text-align:center; }
+
+.field-lbl { display:block; font-size:10px; letter-spacing:.2em; color:var(--gold-dk); text-transform:uppercase; margin-bottom:7px; }
+.txt-input { width:100%; background:rgba(0,0,0,.35); border:1px solid rgba(212,160,23,.25); border-radius:8px; color:var(--parch); font-family:inherit; font-size:16px; padding:10px 14px; outline:none; transition:border-color .2s; margin-bottom:14px; }
+.txt-input:focus { border-color:var(--gold); }
+
+.gold-btn { width:100%; padding:14px; background:linear-gradient(180deg,var(--gold-lt),var(--gold) 55%,#906000); border:none; border-radius:10px; color:#1a0e00; font-family:inherit; font-size:15px; font-weight:bold; letter-spacing:.12em; cursor:pointer; text-transform:uppercase; transition:filter .2s,transform .15s; box-shadow:0 4px 18px rgba(212,160,23,.3); margin-bottom:10px; }
+.gold-btn:hover { filter:brightness(1.12); transform:translateY(-2px); }
+.gold-btn:active { transform:translateY(0); }
+.gold-btn:disabled { opacity:.4; cursor:default; transform:none; filter:none; }
+
+.ghost-btn { width:100%; padding:13px; background:transparent; border:1px solid var(--gold-dk); border-radius:10px; color:var(--gold-dk); font-family:inherit; font-size:14px; cursor:pointer; letter-spacing:.1em; transition:all .2s; }
+.ghost-btn:hover { border-color:var(--gold); color:var(--gold-lt); background:rgba(212,160,23,.06); }
+
+.divider { display:flex; align-items:center; gap:10px; margin:16px 0; color:var(--gold-dk); font-size:11px; letter-spacing:.2em; }
+.divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--gold-dk); opacity:.4; }
+
+.mode-btns { display:flex; gap:10px; }
+.mode-btn { flex:1; padding:28px 10px; background:rgba(0,0,0,.3); border:1px solid rgba(212,160,23,.2); border-radius:14px; color:var(--parch-dk); font-family:inherit; font-size:13px; cursor:pointer; transition:all .2s; text-align:center; letter-spacing:.05em; }
+.mode-btn:hover { background:rgba(212,160,23,.08); border-color:var(--gold-dk); color:var(--parch); }
+.mode-btn .mode-icon { font-size:36px; display:block; margin-bottom:10px; }
+.mode-btn .mode-title { display:block; font-size:14px; font-weight:bold; margin-bottom:4px; color:var(--gold-lt); }
+.mode-btn .mode-sub   { display:block; font-size:11px; opacity:.6; }
+
+/* Room ID display */
+.room-id-display {
+  background:rgba(0,0,0,.4); border:2px solid var(--gold-dk); border-radius:12px;
+  padding:20px; text-align:center; margin-bottom:20px;
+}
+.room-id-label { font-size:9px; letter-spacing:.3em; color:var(--gold-dk); text-transform:uppercase; margin-bottom:8px; }
+.room-id-num { font-size:48px; font-weight:bold; color:var(--gold-lt); letter-spacing:.2em; font-variant:numeric; }
+.room-id-hint { font-size:11px; color:rgba(255,255,255,.4); margin-top:8px; }
+
+/* Waiting room players */
+.player-slots { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
+.player-slot { display:flex; align-items:center; gap:10px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:10px 14px; }
+.player-slot.filled { border-color:rgba(58,138,58,.4); background:rgba(20,60,20,.3); }
+.player-slot.me { border-color:rgba(212,160,23,.4); background:rgba(40,30,5,.3); }
+.slot-num { font-size:10px; color:var(--gold-dk); letter-spacing:.1em; width:26px; }
+.slot-name { font-size:14px; flex:1; }
+.slot-name.waiting { opacity:.35; font-style:italic; }
+.slot-badge { font-size:9px; letter-spacing:.1em; text-transform:uppercase; }
+.slot-badge.host { color:var(--gold-lt); }
+.slot-badge.you  { color:#80ff80; }
+
+.status-msg { font-size:12px; color:var(--gold-dk); text-align:center; margin-bottom:16px; letter-spacing:.08em; min-height:18px; }
+
+.error-msg { font-size:12px; color:#ff8080; text-align:center; margin-bottom:12px; min-height:16px; }
+.back-link { font-size:12px; color:var(--gold-dk); text-align:center; cursor:pointer; margin-top:14px; letter-spacing:.08em; transition:color .2s; }
+.back-link:hover { color:var(--gold-lt); }
+
+/* ══ GAME SCREEN ══ */
+#game { flex-direction:column; background:var(--bg); background-image:radial-gradient(ellipse at 20% 60%,rgba(20,50,20,.35) 0%,transparent 55%),radial-gradient(ellipse at 80% 10%,rgba(10,25,10,.5) 0%,transparent 50%); }
+.topbar { background:rgba(5,10,5,.97); border-bottom:1px solid rgba(212,160,23,.2); padding:8px 18px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; position:sticky; top:0; z-index:50; }
+.tb-title { font-size:16px; color:var(--gold); letter-spacing:.1em; font-variant:small-caps; }
+.tb-turn  { flex:1; font-size:13px; color:#70e870; letter-spacing:.08em; }
+.tb-turn.not-my-turn { color:#90a090; }
+.tb-turn.wound-turn  { color:#ff8888; }
+.tb-turn.ai-turn     { color:#ce93d8; }
+.tb-decks { font-size:11px; color:var(--gold-dk); letter-spacing:.1em; }
+.tb-room { font-size:10px; color:var(--gold-dk); letter-spacing:.1em; }
+.score-chips { display:flex; gap:8px; flex-wrap:wrap; }
+.chip { background:rgba(212,160,23,.08); border:1px solid rgba(212,160,23,.2); border-radius:20px; padding:3px 11px; font-size:11px; color:var(--gold-lt); letter-spacing:.05em; }
+.chip.active { background:rgba(212,160,23,.22); border-color:var(--gold); }
+.chip.me-chip { border-color:rgba(80,200,80,.35); }
+.chip.me-chip.active { background:rgba(20,80,20,.4); border-color:#60cc60; color:#90ff90; }
+.chip.ai-chip { border-color:rgba(138,47,201,.4); }
+.chip.ai-chip.active { background:rgba(138,47,201,.25); border-color:#8b2fc9; color:#ce93d8; }
+
+.game-body { display:grid; grid-template-columns:1fr 255px; flex:1; overflow:hidden; }
+.g-left  { padding:14px; display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+.g-right { background:rgba(5,10,5,.75); border-left:1px solid rgba(212,160,23,.12); padding:12px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+
+.sec-lbl { font-size:9px; letter-spacing:.3em; color:var(--gold-dk); text-transform:uppercase; display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.sec-lbl::after { content:''; flex:1; height:1px; background:linear-gradient(to right,var(--gold-dk),transparent); }
+
+/* Dragonwood cards */
+.landscape-row { display:flex; gap:10px; flex-wrap:wrap; }
+.dw-card { width:138px; min-height:195px; border-radius:12px; padding:11px 10px; cursor:pointer; border-width:2px; border-style:solid; display:flex; flex-direction:column; gap:5px; flex-shrink:0; transition:transform .18s,box-shadow .18s; }
+.dw-card:hover { transform:translateY(-5px); }
+.dw-card.creature { background:linear-gradient(155deg,#1d5420,#0d2a0f); border-color:#3a8a3a; }
+.dw-card.enhance  { background:linear-gradient(155deg,#3a1060,#180530); border-color:#8b2fc9; }
+.dw-card.targeted { box-shadow:0 0 0 3px #ff4040,0 0 22px rgba(255,64,64,.45)!important; transform:translateY(-7px) scale(1.02); }
+.dw-card.ai-eyeing{ box-shadow:0 0 0 2px #ce93d8,0 0 16px rgba(206,147,216,.3)!important; }
+.dw-card.not-my-turn { cursor:default; }
+.dw-card.not-my-turn:hover { transform:none; }
+
+.c-badge { font-size:7px; letter-spacing:.18em; text-transform:uppercase; opacity:.7; margin-bottom:1px; }
+.creature .c-badge { color:#80ff80; }
+.enhance  .c-badge { color:#ce93d8; }
+.c-name { font-size:11px; font-weight:bold; color:#fff; line-height:1.3; }
+.c-vp { display:inline-flex; align-items:center; gap:3px; background:rgba(212,160,23,.15); border:1px solid var(--gold-dk); border-radius:14px; padding:1px 8px; font-size:11px; color:var(--gold-lt); width:fit-content; }
+.c-effect { font-size:11px; color:#d0b0e0; line-height:1.4; flex:1; }
+.c-perm   { font-size:8px; letter-spacing:.12em; color:#9c6aad; text-transform:uppercase; }
+.c-divider { height:1px; background:rgba(255,255,255,.1); margin:3px 0; }
+.attack-grid { display:flex; flex-direction:column; gap:4px; margin-top:auto; }
+.atk-row { display:flex; align-items:center; justify-content:space-between; font-size:10px; letter-spacing:.05em; }
+.atk-lbl { display:flex; align-items:center; gap:4px; }
+.atk-strike .atk-lbl { color:#ef9a9a; } .atk-stomp .atk-lbl { color:#ffcc80; } .atk-scream .atk-lbl { color:#90caf9; }
+.atk-num { font-size:15px; font-weight:bold; color:#fff; }
+
+/* Action panel */
+.action-panel { background:rgba(5,14,5,.85); border:1px solid rgba(212,160,23,.18); border-radius:14px; padding:13px 15px; }
+.sel-info { font-size:13px; color:var(--parch-dk); background:rgba(0,0,0,.3); border-radius:8px; padding:7px 10px; min-height:32px; margin-bottom:11px; line-height:1.5; }
+.sel-info b { color:var(--gold-lt); }
+.wound-banner { background:linear-gradient(135deg,#5a0000,#380000); border:2px solid #cc0000; border-radius:10px; padding:10px 14px; margin-bottom:10px; text-align:center; font-size:12px; color:#ff8888; letter-spacing:.08em; display:none; animation:pulseBorder 1s ease infinite; }
+.wound-banner.show { display:block; }
+.ai-thinking { background:linear-gradient(135deg,#280848,#160328); border:1px solid rgba(138,47,201,.4); border-radius:10px; padding:9px 13px; margin-bottom:10px; font-size:12px; color:#ce93d8; letter-spacing:.06em; display:none; text-align:center; }
+.ai-thinking.show { display:block; }
+.waiting-turn-banner { background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px 14px; margin-bottom:10px; text-align:center; font-size:12px; color:#90a090; letter-spacing:.06em; display:none; }
+.waiting-turn-banner.show { display:block; }
+
+.btn-row { display:flex; gap:7px; flex-wrap:wrap; }
+.btn { flex:1; min-width:80px; padding:10px 6px; border:none; border-radius:10px; font-family:inherit; font-size:11px; font-weight:bold; letter-spacing:.04em; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; line-height:1.2; transition:filter .15s,transform .15s; }
+.btn .bi { font-size:18px; } .btn .bs { font-size:8px; opacity:.7; }
+.btn:hover:not(:disabled) { filter:brightness(1.2); transform:translateY(-2px); }
+.btn:active:not(:disabled) { transform:translateY(0); }
+.btn:disabled { opacity:.35; cursor:default; }
+.btn-reload { background:linear-gradient(180deg,#455a64,#263238); color:#b0c0c8; }
+.btn-strike { background:linear-gradient(180deg,#c62828,#7a0000); color:#ffcdd2; }
+.btn-stomp  { background:linear-gradient(180deg,#6a1b9a,#36006a); color:#e1bee7; }
+.btn-scream { background:linear-gradient(180deg,#1565c0,#0c2d6a); color:#bbdefb; }
+.btn-clear  { background:linear-gradient(180deg,#424242,#1e1e1e); color:#9e9e9e; }
+
+/* Hand */
+.hand-lbl { font-size:9px; letter-spacing:.3em; color:var(--gold-dk); text-transform:uppercase; display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.hand-lbl::after { content:''; flex:1; height:1px; background:linear-gradient(to right,var(--gold-dk),transparent); }
+.hand-row { display:flex; gap:7px; flex-wrap:wrap; }
+.adv-card { width:64px; height:90px; border-radius:10px; border:2px solid rgba(255,255,255,.15); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:transform .15s,box-shadow .15s,border-color .15s; position:relative; overflow:hidden; user-select:none; }
+.adv-card::after { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,.18) 0%,transparent 50%); pointer-events:none; }
+.adv-card:hover:not(.in-wound):not(.no-interact) { transform:translateY(-9px); box-shadow:0 12px 28px rgba(0,0,0,.55); }
+.adv-card.selected { border-color:var(--gold); box-shadow:0 0 0 3px var(--gold),0 0 18px rgba(212,160,23,.45); transform:translateY(-12px); }
+.adv-card.in-wound:hover { border-color:#ff4444; box-shadow:0 0 0 3px #ff4444,0 0 18px rgba(255,68,68,.4); transform:translateY(-9px); }
+.adv-card.no-interact { cursor:default; }
+.s0{background:linear-gradient(155deg,#4a0080,#280050);}
+.s1{background:linear-gradient(155deg,#1a5c1a,#0a3010);}
+.s2{background:linear-gradient(155deg,#8b1a1a,#500a0a);}
+.s3{background:linear-gradient(155deg,#b87e0b,#7a5200);}
+.s4{background:linear-gradient(155deg,#0d5078,#063050);}
+.adv-num  { font-size:22px; font-weight:bold; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.5); }
+.adv-suit { font-size:8px; color:rgba(255,255,255,.7); letter-spacing:.06em; text-align:center; margin-top:1px; }
+
+/* Right panel */
+.rp-lbl { font-size:9px; letter-spacing:.28em; color:var(--gold-dk); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+.rp-lbl::after { content:''; flex:1; height:1px; background:rgba(212,160,23,.18); }
+.enh-owner { font-size:9px; color:var(--gold-dk); letter-spacing:.1em; text-transform:uppercase; margin:6px 0 4px; }
+.enh-item { background:rgba(80,0,120,.28); border:1px solid rgba(139,47,201,.3); border-radius:8px; padding:6px 9px; margin-bottom:4px; }
+.enh-item.used { opacity:.38; }
+.enh-name { font-size:10px; color:#ce93d8; font-weight:bold; }
+.enh-eff  { font-size:10px; color:#c0a0d0; }
+.enh-tag  { font-size:8px; color:#9c6aad; letter-spacing:.1em; text-transform:uppercase; }
+.no-enh   { font-size:11px; color:rgba(255,255,255,.2); font-style:italic; }
+.enh-use-btn { display:inline-flex; align-items:center; gap:4px; margin-top:5px; padding:4px 9px; background:rgba(138,47,201,.2); border:1px solid rgba(138,47,201,.5); border-radius:6px; color:#ce93d8; font-size:10px; font-family:inherit; cursor:pointer; letter-spacing:.05em; transition:all .15s; }
+.enh-use-btn:hover { background:rgba(138,47,201,.4); border-color:#8b2fc9; }
+.enh-use-btn.btn-active { background:rgba(138,47,201,.6); border-color:#ce93d8; color:#fff; box-shadow:0 0 8px rgba(138,47,201,.5); }
+
+.log-box { flex:1; min-height:160px; overflow-y:auto; background:rgba(0,0,0,.45); border-radius:10px; border:1px solid rgba(255,255,255,.05); padding:9px; font-size:11px; line-height:1.85; color:rgba(190,220,190,.8); }
+.log-ok  { color:#70ff90; } .log-bad { color:#ff7070; } .log-evt { color:#ffb74d; }
+.log-inf { color:#90caf9; } .log-ai  { color:#ce93d8; font-style:italic; }
+
+/* Dice overlay */
+#dice-overlay { position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; z-index:200; }
+#dice-overlay.show { display:flex; }
+.dice-who { font-size:11px; color:rgba(255,255,255,.4); letter-spacing:.15em; }
+.dice-atk-lbl { font-size:13px; letter-spacing:.25em; color:var(--gold-dk); text-transform:uppercase; }
+.dice-row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+.die { width:62px; height:62px; background:var(--parch); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:bold; color:#1a1000; box-shadow:0 4px 18px rgba(0,0,0,.5); animation:dieIn .35s ease; }
+.die.rerolled { background:var(--gold-lt); }
+.dice-total  { font-size:20px; color:var(--gold-lt); text-align:center; }
+.dice-needed { font-size:14px; color:var(--parch-dk); }
+.dice-outcome { font-size:32px; font-weight:bold; text-align:center; }
+.dice-outcome.win  { color:#70ff90; }
+.dice-outcome.lose { color:#ff6060; }
+.dice-continue { padding:12px 30px; background:linear-gradient(180deg,var(--gold-lt),var(--gold)); border:none; border-radius:10px; font-family:inherit; font-size:14px; font-weight:bold; color:#1a0e00; cursor:pointer; letter-spacing:.1em; margin-top:6px; display:none; }
+.dice-continue:hover { filter:brightness(1.1); }
+.dice-watching { font-size:12px; color:rgba(255,255,255,.35); margin-top:4px; }
+
+/* Game over */
+#gameover-overlay { position:fixed; inset:0; background:rgba(0,0,0,.88); display:none; align-items:center; justify-content:center; z-index:300; }
+#gameover-overlay.show { display:flex; }
+.go-modal { background:linear-gradient(160deg,#1e3820,#0d1a0e); border:1px solid var(--gold-dk); border-radius:20px; padding:38px 46px; max-width:540px; width:92%; text-align:center; box-shadow:0 28px 90px rgba(0,0,0,.75); }
+.go-modal h2 { font-size:28px; color:var(--gold-lt); margin-bottom:6px; }
+.go-winner { font-size:16px; color:#80ff80; margin-bottom:26px; }
+.go-table { width:100%; border-collapse:collapse; margin-bottom:18px; }
+.go-table th { font-size:9px; letter-spacing:.2em; color:var(--gold-dk); text-transform:uppercase; padding:5px 8px; border-bottom:1px solid rgba(212,160,23,.2); text-align:left; }
+.go-table td { padding:7px 8px; font-size:13px; border-bottom:1px solid rgba(255,255,255,.05); }
+.go-table tr.w td { color:var(--gold-lt); font-weight:bold; }
+.go-note { font-size:11px; color:rgba(255,255,255,.35); margin-bottom:24px; font-style:italic; }
+.go-btn { padding:12px 28px; background:linear-gradient(180deg,var(--gold-lt),var(--gold)); border:none; border-radius:10px; font-family:inherit; font-size:13px; font-weight:bold; color:#1a0e00; cursor:pointer; letter-spacing:.1em; }
+.go-btn:hover { filter:brightness(1.1); }
+
+/* Count selector */
+.count-row { display:flex; align-items:center; gap:14px; margin-bottom:18px; }
+.cnt-btn { width:36px;height:36px;border-radius:50%;border:1px solid var(--gold-dk);background:rgba(212,160,23,.08);color:var(--gold-lt);font-size:20px;cursor:pointer;transition:background .15s; }
+.cnt-btn:hover { background:rgba(212,160,23,.22); }
+#cnt-display-online { font-size:26px; color:var(--gold-lt); min-width:32px; text-align:center; }
+.cnt-label { color:var(--parch-dk); font-size:14px; }
+
+@keyframes pulseBorder { 0%,100%{border-color:#cc0000;box-shadow:0 0 8px rgba(200,0,0,.3);}50%{border-color:#ff4444;box-shadow:0 0 20px rgba(255,68,68,.5);} }
+@keyframes dieIn { from{transform:scale(.3) rotate(0deg);opacity:0;} to{transform:scale(1) rotate(720deg);opacity:1;} }
+::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:rgba(0,0,0,.2);} ::-webkit-scrollbar-thumb{background:rgba(212,160,23,.2);border-radius:4px;}
+@media(max-width:720px){ .game-body{grid-template-columns:1fr;} .g-right{border-left:none;border-top:1px solid rgba(212,160,23,.12);max-height:280px;} .dw-card{width:118px;} }
+</style>
+</head>
+<body>
+
+<!-- LANDING -->
+<div id="landing" class="screen active">
+  <div class="logo">
+    <span class="logo-icon">🐉</span>
+    <h1>DRAGONWOOD</h1>
+    <p>A Game of Dice &amp; Daring</p>
+  </div>
+  <div class="card-box">
+    <h2>Choose Your Adventure</h2>
+    <div class="mode-btns">
+      <button class="mode-btn" onclick="showScreen('local-setup')">
+        <span class="mode-icon">🖥️</span>
+        <span class="mode-title">Local Game</span>
+        <span class="mode-sub">Same device · AI opponents</span>
+      </button>
+      <button class="mode-btn" onclick="showScreen('lobby-create-pre')">
+        <span class="mode-icon">🌐</span>
+        <span class="mode-title">Online</span>
+        <span class="mode-sub">Play with friends across devices</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- LOCAL SETUP (existing) -->
+<div id="local-setup" class="screen">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 20px;background:radial-gradient(ellipse at 50% 30%,#1a3a1a,#0b1a0b 70%)">
+  <div class="logo"><span class="logo-icon">🐉</span><h1>DRAGONWOOD</h1></div>
+  <div class="card-box">
+    <h2>Local Game Setup</h2>
+    <label class="field-lbl">Number of Players</label>
+    <div class="count-row">
+      <button class="cnt-btn" id="local-cnt-dn">−</button>
+      <span id="local-cnt-display">2</span>
+      <button class="cnt-btn" id="local-cnt-up">+</button>
+      <span class="cnt-label">players</span>
+    </div>
+    <div id="local-name-fields"></div>
+    <button class="gold-btn" id="local-start-btn">⚔ Begin Adventure</button>
+    <div class="back-link" onclick="showScreen('landing')">← Back</div>
+  </div>
+  </div>
+</div>
+
+<!-- ONLINE: enter name + create/join -->
+<div id="lobby-create-pre" class="screen">
+  <div class="logo"><span class="logo-icon">🐉</span><h1>DRAGONWOOD</h1></div>
+  <div class="card-box">
+    <h2>Online Play</h2>
+
+    <!-- Rejoin banner (shown when saved session detected) -->
+    <div id="rejoin-banner" style="display:none;background:rgba(58,138,58,.15);border:1px solid rgba(58,138,58,.4);border-radius:12px;padding:14px 16px;margin-bottom:18px;">
+      <div style="font-size:9px;letter-spacing:.2em;color:var(--gold-dk);text-transform:uppercase;margin-bottom:8px;">Previous Session Found</div>
+      <div id="rejoin-info" style="font-size:13px;color:var(--parch-dk);margin-bottom:12px;"></div>
+      <button class="gold-btn" id="btn-rejoin" style="margin-bottom:8px;">🔄 Rejoin Game</button>
+      <div style="font-size:11px;color:rgba(255,255,255,.3);text-align:center;cursor:pointer;" onclick="clearSavedSession()">× Clear saved session</div>
+    </div>
+
+    <label class="field-lbl">Your Name</label>
+    <input class="txt-input" id="online-name" placeholder="Enter your name..." maxlength="18">
+    <div class="error-msg" id="online-name-error"></div>
+    <button class="gold-btn" id="btn-create-room">🏰 Create a Room</button>
+    <div class="divider">or</div>
+    <label class="field-lbl">Room Code</label>
+    <input class="txt-input" id="join-room-input" placeholder="Enter 6-digit code..." maxlength="6" style="letter-spacing:.2em;font-size:20px;text-align:center">
+    <button class="gold-btn" id="btn-join-room">🚪 Join Room</button>
+    <div class="error-msg" id="join-error"></div>
+    <div class="back-link" onclick="showScreen('landing')">← Back</div>
+  </div>
+</div>
+
+<!-- WAITING ROOM -->
+<div id="waiting" class="screen">
+  <div class="logo"><span class="logo-icon">🐉</span><h1>DRAGONWOOD</h1></div>
+  <div class="card-box">
+    <h2>Waiting Room</h2>
+    <div class="room-id-display">
+      <div class="room-id-label">Share this code with friends</div>
+      <div class="room-id-num" id="room-id-display">——</div>
+      <div class="room-id-hint">They enter it on the Online screen</div>
+    </div>
+
+    <!-- Host only: player count selector -->
+    <div id="host-controls" style="display:none">
+      <label class="field-lbl">Max Players</label>
+      <div class="count-row">
+        <button class="cnt-btn" id="online-cnt-dn">−</button>
+        <span id="cnt-display-online">2</span>
+        <button class="cnt-btn" id="online-cnt-up">+</button>
+        <span class="cnt-label">players</span>
+      </div>
+    </div>
+
+    <div class="player-slots" id="waiting-player-slots"></div>
+    <div class="status-msg" id="waiting-status">Waiting for players...</div>
+    <button class="gold-btn" id="btn-start-online" style="display:none" disabled>⚔ Start Game</button>
+    <div class="error-msg" id="waiting-error"></div>
+    <div class="back-link" onclick="leaveRoom()">← Leave Room</div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game" class="screen">
+  <div class="topbar">
+    <span class="tb-title">🐉 Dragonwood</span>
+    <span class="tb-turn" id="tb-turn"></span>
+    <span class="tb-decks" id="tb-decks"></span>
+    <span class="tb-room" id="tb-room"></span>
+    <div class="score-chips" id="score-chips"></div>
+  </div>
+  <div class="game-body">
+    <div class="g-left">
+      <div>
+        <div class="sec-lbl">🌲 The Landscape</div>
+        <div class="landscape-row" id="landscape-row"></div>
+      </div>
+      <div class="action-panel">
+        <div class="sel-info" id="sel-info">Select cards from your hand, then choose an attack — or Reload.</div>
+        <div class="wound-banner" id="wound-banner">⚠ WOUNDED — Click a card from your hand to discard.</div>
+        <div class="ai-thinking" id="ai-thinking">🤖 Thinking...</div>
+        <div class="waiting-turn-banner" id="waiting-turn-banner">⏳ Waiting for opponent's move...</div>
+        <div class="btn-row">
+          <button class="btn btn-reload" id="btn-reload" onclick="doReload()"><span class="bi">🔄</span>Reload</button>
+          <button class="btn btn-strike" id="btn-strike" onclick="doCapture('strike')"><span class="bi">⚔</span>Strike<span class="bs">Consecutive</span></button>
+          <button class="btn btn-stomp"  id="btn-stomp"  onclick="doCapture('stomp')"><span class="bi">👢</span>Stomp<span class="bs">Same Number</span></button>
+          <button class="btn btn-scream" id="btn-scream" onclick="doCapture('scream')"><span class="bi">😱</span>Scream<span class="bs">Same Suit</span></button>
+          <button class="btn btn-clear" onclick="clearSel()"><span class="bi">✕</span>Clear</button>
+        </div>
+      </div>
+      <div>
+        <div class="hand-lbl" id="hand-lbl">Your Hand</div>
+        <div class="hand-row" id="hand-row"></div>
+      </div>
+    </div>
+    <div class="g-right">
+      <div><div class="rp-lbl">✨ Enhancements</div><div id="enh-panel"></div></div>
+      <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+        <div class="rp-lbl">📜 Log</div>
+        <div class="log-box" id="log-box"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DICE OVERLAY -->
+<div id="dice-overlay">
+  <div class="dice-who" id="dice-who"></div>
+  <div class="dice-atk-lbl" id="dice-atk-lbl"></div>
+  <div class="dice-row" id="dice-row"></div>
+  <div class="dice-total"  id="dice-total"></div>
+  <div class="dice-needed" id="dice-needed"></div>
+  <div class="dice-outcome" id="dice-outcome"></div>
+  <button class="dice-continue" id="dice-continue" onclick="closeDice()">Continue</button>
+  <div class="dice-watching" id="dice-watching"></div>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover-overlay">
+  <div class="go-modal">
+    <h2>🐉 Game Over!</h2>
+    <div class="go-winner" id="go-winner"></div>
+    <table class="go-table">
+      <thead><tr><th>Player</th><th>VP</th><th>Cards</th><th>Bonus</th><th>Total</th></tr></thead>
+      <tbody id="go-tbody"></tbody>
+    </table>
+    <p class="go-note">+3 VP bonus to player with most captured cards (+2 if tied)</p>
+    <button class="go-btn" onclick="resetToLanding()">🏠 Back to Menu</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// FIREBASE INIT
+// ══════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyAq_kwrsW287z9YlWZVqVA8eYeB2XKOSh0",
+  authDomain: "dragonwood-a34e7.firebaseapp.com",
+  databaseURL: "https://dragonwood-a34e7-default-rtdb.firebaseio.com",
+  projectId: "dragonwood-a34e7",
+  storageBucket: "dragonwood-a34e7.firebasestorage.app",
+  messagingSenderId: "862647670448",
+  appId: "1:862647670448:web:e29b4d8450178d6b40cd75"
+};
+// Guard in case scripts didn't load
+if (typeof firebase === 'undefined') {
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b1a0b;color:#f0c84a;font-family:Georgia,serif;flex-direction:column;gap:16px;text-align:center;padding:20px"><div style="font-size:48px">🐉</div><div style="font-size:22px">Could not load Firebase</div><div style="font-size:14px;color:#8a6510;max-width:400px">This game needs an internet connection to load Firebase.<br><br>Make sure you are online, then refresh the page.</div></div>';
+  throw new Error("Firebase SDK not loaded");
+}
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ══════════════════════════════════════════════════════════
+// SESSION STATE
+// ══════════════════════════════════════════════════════════
+let roomId = null;          // current room code (6 digits)
+let myPlayerIdx = -1;       // which player index I am (-1 = local/AI)
+let isOnline = false;       // true when in online multiplayer mode
+let isHost = false;         // true if I created the room
+let myName = '';
+let maxPlayersOnline = 2;   // host sets this
+let roomRef = null;         // Firebase ref to /rooms/{roomId}
+let stateListener = null;   // Firebase listener unsub function
+let metaListener = null;
+
+// ══════════════════════════════════════════════════════════
+// GAME CONSTANTS
+// ══════════════════════════════════════════════════════════
+const SUITS  = ['Moon','Leaf','Fire','Storm','Water'];
+const SSYMS  = ['🌙','🌿','🔥','⚡','💧'];
+const DFACES = [1,2,2,3,3,4];
+
+const CREATURES = [
+  {name:'Crazy Bats',      vp:1, st:4,  sk:3,  sc:3,  n:4},
+  {name:'Spooky Spiders',  vp:1, st:3,  sk:3,  sc:4,  n:4},
+  {name:'Fire Ants',       vp:2, st:7,  sk:4,  sc:6,  n:2},
+  {name:'Giggling Goblin', vp:2, st:7,  sk:5,  sc:5,  n:2},
+  {name:"Wasps' Nest",     vp:2, st:5,  sk:6,  sc:7,  n:2},
+  {name:'Fierce Jaguar',   vp:3, st:8,  sk:6,  sc:8,  n:2},
+  {name:'Hungry Bear',     vp:3, st:7,  sk:6,  sc:9,  n:2},
+  {name:'Pack of Wolves',  vp:3, st:6,  sk:7,  sc:9,  n:2},
+  {name:'Wild Boar',       vp:3, st:8,  sk:7,  sc:7,  n:2},
+  {name:'Gigantic Python', vp:4, st:11, sk:8,  sc:10, n:1},
+  {name:'Grumpy Troll',    vp:4, st:9,  sk:11, sc:9,  n:1},
+  {name:'Secret Shadow',   vp:4, st:10, sk:8,  sc:11, n:1},
+  {name:'Gooey Glob',      vp:5, st:14, sk:9,  sc:10, n:1},
+  {name:'Angry Ogre',      vp:5, st:12, sk:9,  sc:14, n:1},
+  {name:'Blue Dragon',     vp:6, st:13, sk:10, sc:13, n:1, dragon:true},
+  {name:'Orange Dragon',   vp:7, st:15, sk:11, sc:12, n:1, dragon:true},
+];
+const ENHANCEMENTS = [
+  {name:'Friendly Bunny',   eff:'Roll 1 extra die in an attempt',  perm:false, strike:4,  stomp:4,  scream:4},
+  {name:'Charmed Potion',   eff:'Use as any Adventurer card',       perm:false, strike:5,  stomp:4,  scream:5},
+  {name:'Lightning Bolt',   eff:'Add 4 points to an attempt',       perm:false, strike:7,  stomp:5,  scream:7},
+  {name:'Lucky Mushroom',   eff:'Re-roll 1 die in any attempt',     perm:true,  strike:7,  stomp:5,  scream:7},
+  {name:'Magical Unicorn',  eff:'Add 1 point to all attempts',      perm:true,  strike:8,  stomp:6,  scream:8},
+  {name:'Silver Sword',     eff:'+2 to all Strikes',                perm:true,  strike:10, stomp:6,  scream:7},
+  {name:'Bucket of Spinach',eff:'+2 to all Stomps',                 perm:true,  strike:7,  stomp:10, scream:8},
+  {name:'Ghost Disguise',   eff:'+2 to all Screams',                perm:true,  strike:8,  stomp:7,  scream:10},
+  {name:'Cloak of Darkness',eff:'Add 2 points to all attempts',     perm:true,  strike:11, stomp:9,  scream:11},
+];
+const EVENTS = [
+  {name:'Quicksand',    txt:'Remove all Enhancements from the Landscape.'},
+  {name:'Sunny Day',    txt:'All players draw 2 Adventurer cards.'},
+  {name:'Thunderstorm', txt:'All players discard 1 Adventurer card.'},
+  {name:'Wind Storm',   txt:'All players pass 1 Adventurer card to the left.'},
+];
+const ENH_VP = {'Friendly Bunny':1.5,'Charmed Potion':1.0,'Lightning Bolt':2.5,'Lucky Mushroom':2.0,'Magical Unicorn':2.5,'Silver Sword':2.2,'Bucket of Spinach':2.2,'Ghost Disguise':2.2,'Cloak of Darkness':3.5};
+
+// Probability engine
+const PROB_DIST = (()=>{
+  const dist=[{0:1.0}];
+  for(let n=1;n<=6;n++){
+    const cur={};
+    for(const[s,p] of Object.entries(dist[n-1])) for(const f of DFACES){const ns=(+s)+f;cur[ns]=(cur[ns]||0)+p/6;}
+    dist.push(cur);
+  }
+  return dist;
+})();
+function pAtLeast(n,k){
+  if(n<=0)return k<=0?1:0; if(k<=n)return 1; if(k>4*n)return 0;
+  let p=0; for(const[s,pr] of Object.entries(PROB_DIST[n]))if(+s>=k)p+=pr; return p;
+}
+
+// ══════════════════════════════════════════════════════════
+// GAME STATE (local mirror)
+// ══════════════════════════════════════════════════════════
+let G = null;
+let sel = [];
+let targetIdx = null;
+let woundMode = false;
+let pendingDice = null;     // local only — for dice overlay animation
+let logs = [];
+let uid = 0;
+let aiTimer = null;
+let activeOneTimeIds = new Set();
+let diceAutoClose = null;
+let ignoreNextStateUpdate = false; // prevent echo when we push our own state
+const ID = () => ++uid;
+
+// ══════════════════════════════════════════════════════════
+// SCREEN ROUTING
+// ══════════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'lobby-create-pre') checkForRejoin();
+}
+
+// ══════════════════════════════════════════════════════════
+// SESSION PERSISTENCE (localStorage)
+// ══════════════════════════════════════════════════════════
+function saveSession() {
+  try {
+    localStorage.setItem('dw_session', JSON.stringify({
+      roomId, myName, myPlayerIdx, isHost
+    }));
+  } catch(e) {}
+}
+
+function clearSavedSession() {
+  try { localStorage.removeItem('dw_session'); } catch(e) {}
+}
+
+function getSavedSession() {
+  try {
+    const raw = localStorage.getItem('dw_session');
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+// Check for a saved session on page load and show rejoin banner
+async function checkForRejoin() {
+  const saved = getSavedSession();
+  if (!saved || !saved.roomId || !saved.myName) return;
+
+  try {
+    const snap = await db.ref(`rooms/${saved.roomId}/meta`).get();
+    if (!snap.exists()) { clearSavedSession(); return; }
+    const meta = snap.val();
+
+    // Room must still be active and contain this player's name
+    const names = meta.playerNames || [];
+    const idx = names.indexOf(saved.myName);
+    if ((meta.status !== 'playing' && meta.status !== 'waiting') || idx === -1) {
+      clearSavedSession(); return;
+    }
+
+    // Show rejoin banner
+    const banner = document.getElementById('rejoin-banner');
+    const info   = document.getElementById('rejoin-info');
+    if (banner && info) {
+      const statusLabel = meta.status === 'playing' ? '🎮 Game in progress' : '⏳ In waiting room';
+      info.innerHTML = `<b>${saved.myName}</b> in Room <b>${saved.roomId}</b><br><span style="font-size:11px;opacity:.6">${statusLabel}</span>`;
+      banner.style.display = 'block';
+      // Pre-fill name field
+      const nameInput = document.getElementById('online-name');
+      if (nameInput) nameInput.value = saved.myName;
+    }
+  } catch(e) {
+    clearSavedSession();
+  }
+}
+
+// Rejoin button
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('btn-rejoin');
+  if (btn) btn.addEventListener('click', () => doRejoin());
+});
+
+async function doRejoin() {
+  const saved = getSavedSession();
+  if (!saved) return;
+
+  const btn = document.getElementById('btn-rejoin');
+  if (btn) { btn.disabled = true; btn.textContent = 'Rejoining...'; }
+
+  try {
+    const snap = await db.ref(`rooms/${saved.roomId}/meta`).get();
+    if (!snap.exists()) { alert('Room no longer exists.'); clearSavedSession(); location.reload(); return; }
+    const meta = snap.val();
+    const names = meta.playerNames || [];
+    const idx = names.indexOf(saved.myName);
+    if (idx === -1) { alert('Your name was not found in that room.'); clearSavedSession(); location.reload(); return; }
+
+    // Restore session
+    myName       = saved.myName;
+    myPlayerIdx  = idx;
+    roomId       = saved.roomId;
+    isHost       = (idx === 0);
+    isOnline     = true;
+    roomRef      = db.ref(`rooms/${roomId}`);
+
+    if (meta.status === 'playing') {
+      // Game already started — jump straight in
+      listenGameState();
+      showScreen('game');
+    } else {
+      // Still in waiting room
+      showScreen('waiting');
+      document.getElementById('room-id-display').textContent = roomId;
+      document.getElementById('host-controls').style.display = isHost ? 'block' : 'none';
+      document.getElementById('btn-start-online').style.display = isHost ? 'block' : 'none';
+      listenWaiting();
+    }
+  } catch(e) {
+    alert('Error rejoining: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Rejoin Game'; }
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// LOCAL SETUP UI
+// ══════════════════════════════════════════════════════════
+let localNumP = 2;
+const DEF_NAMES = ['You','Dragon AI','Player 3','Player 4'];
+const DEF_IS_AI = [false,true,false,false];
+
+function updateLocalSetup() {
+  document.getElementById('local-cnt-display').textContent = localNumP;
+  const nf = document.getElementById('local-name-fields');
+  nf.innerHTML = '';
+  for (let i = 0; i < localNumP; i++) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:10px;';
+    const lbl = document.createElement('label');
+    lbl.textContent = `Player ${i+1}`;
+    lbl.style.cssText = 'font-size:11px;color:var(--gold-dk);letter-spacing:.1em;width:56px;text-align:right;flex-shrink:0;';
+    const inp = document.createElement('input');
+    inp.className = 'txt-input'; inp.id = `ln${i}`;
+    inp.value = DEF_NAMES[i]; inp.maxLength = 18;
+    inp.style.marginBottom = '0';
+    const tog = document.createElement('label');
+    tog.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;background:rgba(138,47,201,.12);border:1px solid rgba(138,47,201,.3);border-radius:8px;padding:6px 10px;font-size:12px;color:#ce93d8;white-space:nowrap;flex-shrink:0;transition:all .2s;';
+    tog.id = `laitog-${i}`;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.id = `lai${i}`;
+    cb.checked = !!DEF_IS_AI[i]; cb.style.display = 'none';
+    const dot = document.createElement('span');
+    dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${DEF_IS_AI[i]?'#ce93d8':'#9c4dcc'};`;
+    if (DEF_IS_AI[i]) { tog.style.background = 'rgba(138,47,201,.35)'; tog.style.borderColor = '#8b2fc9'; }
+    tog.appendChild(cb); tog.appendChild(dot); tog.appendChild(document.createTextNode(' AI'));
+    cb.addEventListener('change', function() {
+      tog.style.background = this.checked ? 'rgba(138,47,201,.35)' : 'rgba(138,47,201,.12)';
+      tog.style.borderColor = this.checked ? '#8b2fc9' : 'rgba(138,47,201,.3)';
+      dot.style.background = this.checked ? '#ce93d8' : '#9c4dcc';
+    });
+    row.appendChild(lbl); row.appendChild(inp); row.appendChild(tog);
+    nf.appendChild(row);
+  }
+}
+
+document.getElementById('local-cnt-dn').addEventListener('click', ()=>{ if(localNumP>2){localNumP--;updateLocalSetup();} });
+document.getElementById('local-cnt-up').addEventListener('click', ()=>{ if(localNumP<4){localNumP++;updateLocalSetup();} });
+document.getElementById('local-start-btn').addEventListener('click', ()=>{
+  const names=[], aiFlags=[];
+  for(let i=0;i<localNumP;i++){
+    names.push((document.getElementById(`ln${i}`).value||'').trim()||`Player ${i+1}`);
+    aiFlags.push(document.getElementById(`lai${i}`).checked);
+  }
+  isOnline = false; myPlayerIdx = -1;
+  startGame(names, aiFlags);
+  showScreen('game');
+  render();
+  if(G.players[G.cur].isAI) scheduleAI(1200);
+});
+updateLocalSetup();
+
+// ══════════════════════════════════════════════════════════
+// ONLINE LOBBY
+// ══════════════════════════════════════════════════════════
+function genRoomId() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+document.getElementById('online-cnt-dn').addEventListener('click', ()=>{ if(maxPlayersOnline>2){maxPlayersOnline--;document.getElementById('cnt-display-online').textContent=maxPlayersOnline;updateWaitingRoom();} });
+document.getElementById('online-cnt-up').addEventListener('click', ()=>{ if(maxPlayersOnline<4){maxPlayersOnline++;document.getElementById('cnt-display-online').textContent=maxPlayersOnline;updateWaitingRoom();} });
+
+document.getElementById('btn-create-room').addEventListener('click', async ()=>{
+  const name = document.getElementById('online-name').value.trim();
+  if (!name) { document.getElementById('online-name-error').textContent = 'Enter your name first!'; return; }
+  document.getElementById('online-name-error').textContent = '';
+  myName = name;
+  isHost = true;
+  isOnline = true;
+  myPlayerIdx = 0;
+  roomId = genRoomId();
+  saveSession();
+  maxPlayersOnline = 2;
+
+  roomRef = db.ref(`rooms/${roomId}`);
+  await roomRef.set({
+    meta: { roomId, status: 'waiting', playerNames: [name], maxPlayers: 2, hostIdx: 0 },
+    gameState: null
+  });
+
+  showScreen('waiting');
+  document.getElementById('room-id-display').textContent = roomId;
+  document.getElementById('host-controls').style.display = 'block';
+  document.getElementById('btn-start-online').style.display = 'block';
+  listenWaiting();
+});
+
+document.getElementById('btn-join-room').addEventListener('click', async ()=>{
+  const name = document.getElementById('online-name').value.trim();
+  const code = document.getElementById('join-room-input').value.trim();
+  document.getElementById('join-error').textContent = '';
+  document.getElementById('online-name-error').textContent = '';
+  if (!name) { document.getElementById('online-name-error').textContent = 'Enter your name first!'; return; }
+  if (code.length !== 6 || isNaN(code)) { document.getElementById('join-error').textContent = 'Enter a valid 6-digit room code.'; return; }
+
+  const snap = await db.ref(`rooms/${code}/meta`).get();
+  if (!snap.exists()) { document.getElementById('join-error').textContent = 'Room not found!'; return; }
+  const meta = snap.val();
+  if (meta.status !== 'waiting') { document.getElementById('join-error').textContent = 'That game already started!'; return; }
+
+  const names = meta.playerNames || [];
+  if (names.length >= meta.maxPlayers) { document.getElementById('join-error').textContent = 'Room is full!'; return; }
+
+  myName = name; myPlayerIdx = names.length; isHost = false; isOnline = true; roomId = code;
+  saveSession();
+  roomRef = db.ref(`rooms/${roomId}`);
+
+  const newNames = [...names, name];
+  await roomRef.child('meta/playerNames').set(newNames);
+
+  showScreen('waiting');
+  document.getElementById('room-id-display').textContent = roomId;
+  document.getElementById('host-controls').style.display = 'none';
+  document.getElementById('btn-start-online').style.display = 'none';
+  listenWaiting();
+});
+
+function listenWaiting() {
+  if (metaListener) metaListener();
+  metaListener = db.ref(`rooms/${roomId}/meta`).on('value', snap => {
+    if (!snap.exists()) return;
+    const meta = snap.val();
+
+    // If host changed maxPlayers, update mine
+    if (isHost) {
+      db.ref(`rooms/${roomId}/meta/maxPlayers`).set(maxPlayersOnline);
+    } else {
+      maxPlayersOnline = meta.maxPlayers || 2;
+      document.getElementById('cnt-display-online').textContent = maxPlayersOnline;
+    }
+
+    // Update myPlayerIdx in case someone joined before us (rejoin scenario)
+    const names = meta.playerNames || [];
+    if (!isHost) {
+      const idx = names.indexOf(myName);
+      if (idx >= 0) { myPlayerIdx = idx; saveSession(); }
+    }
+
+    updateWaitingRoomUI(meta);
+
+    if (meta.status === 'playing') {
+      // Game started - switch to game and listen to state
+      if (metaListener) { db.ref(`rooms/${roomId}/meta`).off('value', metaListener); metaListener = null; }
+      listenGameState();
+      showScreen('game');
+    }
+  });
+}
+
+function updateWaitingRoom() {
+  if (!roomRef || !isHost) return;
+  roomRef.child('meta/maxPlayers').set(maxPlayersOnline);
+}
+
+function updateWaitingRoomUI(meta) {
+  const names = meta.playerNames || [];
+  const max   = meta.maxPlayers || 2;
+  const slots = document.getElementById('waiting-player-slots');
+  slots.innerHTML = '';
+  for (let i = 0; i < max; i++) {
+    const div = document.createElement('div');
+    div.className = `player-slot${names[i] ? ' filled' : ''}${i === myPlayerIdx ? ' me' : ''}`;
+    const numEl = document.createElement('div'); numEl.className='slot-num'; numEl.textContent=`P${i+1}`;
+    const nameEl= document.createElement('div'); nameEl.className='slot-name'+(names[i]?'':' waiting'); nameEl.textContent=names[i]||'Waiting...';
+    const badgeEl=document.createElement('div'); badgeEl.className='slot-badge';
+    if (i===0) { badgeEl.classList.add('host'); badgeEl.textContent='HOST'; }
+    if (i===myPlayerIdx) { badgeEl.classList.add('you'); badgeEl.textContent=i===0?'HOST (YOU)':'YOU'; }
+    div.appendChild(numEl); div.appendChild(nameEl); div.appendChild(badgeEl);
+    slots.appendChild(div);
+  }
+
+  const status = document.getElementById('waiting-status');
+  const startBtn = document.getElementById('btn-start-online');
+  const enough = names.length >= 2;
+  const full    = names.length >= max;
+
+  if (full) status.textContent = '✅ Room full! Host can start the game.';
+  else status.textContent = `${names.length}/${max} players joined...`;
+
+  if (isHost) {
+    startBtn.disabled = !enough;
+    startBtn.textContent = enough ? '⚔ Start Game!' : `Need at least 2 players (${names.length}/${max})`;
+  }
+}
+
+document.getElementById('btn-start-online').addEventListener('click', async ()=>{
+  if (!isHost) return;
+  const snap = await db.ref(`rooms/${roomId}/meta`).get();
+  const meta = snap.val();
+  const names = meta.playerNames || [];
+  if (names.length < 2) return;
+
+  // Build initial game state
+  const aiFlags = new Array(names.length).fill(false); // no AI in online mode
+  startGame(names, aiFlags);
+  isOnline = true;
+  saveSession();
+
+  // Push state + update status
+  await db.ref(`rooms/${roomId}`).update({
+    'meta/status': 'playing',
+    gameState: serializeState()
+  });
+  // listenWaiting will pick up status change and switch all clients to game
+});
+
+async function leaveRoom() {
+  if (metaListener) { db.ref(`rooms/${roomId}/meta`).off('value', metaListener); metaListener = null; }
+  if (stateListener) { db.ref(`rooms/${roomId}/gameState`).off('value', stateListener); stateListener = null; }
+  if (isHost && roomId) {
+    await db.ref(`rooms/${roomId}/meta/status`).set('closed');
+  }
+  roomId = null; isOnline = false; isHost = false; myPlayerIdx = -1;
+  clearSavedSession();
+  showScreen('landing');
+}
+
+// ══════════════════════════════════════════════════════════
+// FIREBASE STATE SYNC
+// ══════════════════════════════════════════════════════════
+function serializeState() {
+  if (!G) return null;
+  return JSON.parse(JSON.stringify({
+    players: G.players,
+    cur: G.cur,
+    advDeck: G.advDeck,
+    advDiscard: G.advDiscard,
+    advDecksUsed: G.advDecksUsed,
+    dwDeck: G.dwDeck,
+    landscape: G.landscape,
+    over: G.over,
+    woundMode,
+    pendingDiceSerial: pendingDice ? {
+      type: pendingDice.type,
+      rolls: pendingDice.rolls,
+      rerolled: pendingDice.rerolled,
+      total: pendingDice.total,
+      bonus: pendingDice.bonus,
+      final: pendingDice.final,
+      req:   pendingDice.req,
+      tgt:   pendingDice.tgt,
+      win:   pendingDice.win,
+      pIdx:  G.players.indexOf(pendingDice.p),
+      tidx:  pendingDice.tidx,
+      // card IDs so all clients know which cards were played
+      cardIds: pendingDice.cards.map(c => c.id),
+    } : null,
+    logs,
+  }));
+}
+
+function pushState() {
+  if (!isOnline || !roomRef) return;
+  ignoreNextStateUpdate = true;
+  roomRef.child('gameState').set(serializeState()).catch(console.error);
+}
+
+function listenGameState() {
+  if (stateListener) { db.ref(`rooms/${roomId}/gameState`).off('value', stateListener); }
+  stateListener = db.ref(`rooms/${roomId}/gameState`).on('value', snap => {
+    if (!snap.exists()) return;
+    if (ignoreNextStateUpdate) { ignoreNextStateUpdate = false; return; }
+    const data = snap.val();
+    applyRemoteState(data);
+  });
+}
+
+function applyRemoteState(data) {
+  if (!data) return;
+
+  // Reconstruct G from serialized data — Firebase can turn arrays into objects
+  const toArr = v => v ? (Array.isArray(v) ? v : Object.values(v)) : [];
+
+  G = {
+    players: toArr(data.players).map(p => ({
+      ...p,
+      hand: toArr(p.hand),
+      captured: toArr(p.captured),
+      enhancements: toArr(p.enhancements),
+    })),
+    cur: data.cur,
+    advDeck: toArr(data.advDeck),
+    advDiscard: toArr(data.advDiscard),
+    advDecksUsed: data.advDecksUsed,
+    dwDeck: toArr(data.dwDeck),
+    landscape: toArr(data.landscape),
+    over: data.over,
+  };
+  woundMode = !!data.woundMode;
+  logs = toArr(data.logs);
+
+  // Reconstruct pendingDice if present
+  const pd = data.pendingDiceSerial;
+  if (pd) {
+    const p = G.players[pd.pIdx];
+    const cardIds = toArr(pd.cardIds);
+    pendingDice = {
+      type:     pd.type,
+      rolls:    toArr(pd.rolls),
+      rerolled: pd.rerolled || null,
+      total:    pd.total,
+      bonus:    pd.bonus,
+      final:    pd.final,
+      req:      pd.req,
+      tgt:      pd.tgt,
+      win:      pd.win,
+      p,
+      tidx:     pd.tidx,
+      cards:    p.hand.filter(c => cardIds.includes(c.id)),
+    };
+    // Show dice overlay if not already showing
+    const overlay = document.getElementById('dice-overlay');
+    if (!overlay.classList.contains('show')) {
+      showDiceFromPending();
+    }
+  } else {
+    // No pending dice — hide overlay if it was open
+    if (pendingDice) {
+      pendingDice = null;
+      document.getElementById('dice-overlay').classList.remove('show');
+    }
+  }
+
+  render();
+  if (G.over) showGameOver();
+}
+
+// ══════════════════════════════════════════════════════════
+// GAME LOGIC
+// ══════════════════════════════════════════════════════════
+function shuffle(a) { const b=[...a]; for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];} return b; }
+
+function mkAdvDeck() {
+  const d=[];
+  for(let s=0;s<5;s++) for(let n=1;n<=12;n++) d.push({id:ID(),suit:s,num:n,lb:false});
+  for(let i=0;i<4;i++) d.push({id:ID(),suit:0,num:0,lb:true});
+  return shuffle(d);
+}
+function mkDWDeck() {
+  const d=[];
+  CREATURES.forEach(c=>{ for(let i=0;i<c.n;i++) d.push({id:ID(),type:'creature',name:c.name,vp:c.vp,strike:c.st,stomp:c.sk,scream:c.sc,dragon:!!c.dragon}); });
+  ENHANCEMENTS.forEach(e=>d.push({id:ID(),type:'enhancement',name:e.name,eff:e.eff,perm:e.perm,used:false,strike:e.strike,stomp:e.stomp,scream:e.scream}));
+  EVENTS.forEach(e=>d.push({id:ID(),type:'event',name:e.name,txt:e.txt}));
+  return d;
+}
+
+function startGame(names, aiFlags) {
+  const n = names.length;
+  const remove = {2:12,3:10,4:8}[n]||10;
+  let full = mkDWDeck();
+  const dragons = full.filter(c=>c.dragon);
+  let rest = shuffle(full.filter(c=>!c.dragon)).slice(remove);
+  const mid = Math.floor(rest.length/2);
+  const dwDeck = [...rest.slice(0,mid),...shuffle([...rest.slice(mid),...dragons])];
+
+  G = {
+    players: names.map((nm,i)=>({name:nm,hand:[],captured:[],enhancements:[],isAI:!!aiFlags[i]})),
+    cur:0, advDeck:mkAdvDeck(), advDiscard:[], advDecksUsed:0, dwDeck, landscape:[], over:false,
+  };
+  G.players.forEach(p=>{ for(let i=0;i<5;i++) deal(p); });
+  fillLandscape();
+  sel=[]; targetIdx=null; woundMode=false; pendingDice=null; logs=[];
+  log('🐉 The adventure begins!','inf');
+}
+
+function deal(player) {
+  if(!G.advDeck.length){
+    if(!G.advDiscard.length) return;
+    G.advDeck=shuffle(G.advDiscard); G.advDiscard=[]; G.advDecksUsed++;
+    log(`📚 Adventurer deck reshuffled (${G.advDecksUsed}/2).`,'inf');
+    if(G.advDecksUsed>=2){ log('⚠ Two decks used! Final round.','evt'); G.over=true; }
+  }
+  const c=G.advDeck.pop();
+  if(c.lb){ G.advDiscard.push(c); log(`🐞 Lucky Ladybug! ${player.name} draws 2 extra.`,'inf'); deal(player); deal(player); }
+  else player.hand.push(c);
+}
+
+function fillLandscape() {
+  while(G.landscape.filter(Boolean).length<5&&G.dwDeck.length>0){
+    const c=G.dwDeck.shift();
+    if(c.type==='event') runEvent(c); else G.landscape.push(c);
+  }
+}
+
+function runEvent(c) {
+  log(`⚡ EVENT: ${c.name} — ${c.txt}`,'evt');
+  if(c.name==='Sunny Day'){ G.players.forEach(p=>{deal(p);deal(p);}); }
+  else if(c.name==='Thunderstorm'){ G.players.forEach(p=>{ if(p.hand.length){const i=Math.floor(Math.random()*p.hand.length);G.advDiscard.push(...p.hand.splice(i,1));} }); }
+  else if(c.name==='Quicksand'){ const rm=G.landscape.filter(x=>x&&x.type==='enhancement'); G.landscape=G.landscape.filter(x=>x&&x.type!=='enhancement'); if(rm.length)log(`  ${rm.length} enhancement(s) swept.`); }
+  else if(c.name==='Wind Storm'){ const np=G.players.length; if(G.players.every(p=>p.hand.length>0)){const passed=G.players.map(p=>p.hand.splice(Math.floor(Math.random()*p.hand.length),1)[0]); G.players.forEach((p,i)=>p.hand.push(passed[(i-1+np)%np])); log('  Each player passed 1 card left.');} }
+}
+
+function log(msg,cls='') { logs.push({msg,cls}); if(logs.length>80) logs.shift(); }
+
+// ── Turn helpers ──────────────────────────────────────
+function isMyTurn() {
+  if (!G) return false;
+  if (!isOnline) return !G.players[G.cur].isAI;
+  return G.cur === myPlayerIdx;
+}
+function isAITurn() { return G && G.players[G.cur].isAI; }
+
+function doReload() {
+  if(woundMode||G.over||!isMyTurn()) return;
+  const p=G.players[G.cur];
+  if(p.hand.length>=9){log('⚠ Hand full!','bad');render();return;}
+  clearSel(); deal(p); log(`${p.name} reloads.`);
+  nextTurn(); render(); pushState();
+}
+
+function doCapture(type) {
+  if(woundMode||G.over||!isMyTurn()) return;
+  if(!sel.length){log('⚠ Select cards first!','bad');render();return;}
+  if(targetIdx===null){log('⚠ Click a Landscape card to target!','bad');render();return;}
+  const tgt=G.landscape[targetIdx];
+  if(!tgt){log('⚠ Target gone.','bad');targetIdx=null;render();return;}
+  const p=G.players[G.cur];
+  const cards=p.hand.filter(c=>sel.includes(c.id));
+  const v=validate(cards,type);
+  if(!v.ok){log(`⚠ Invalid ${type}: ${v.why}`,'bad');render();return;}
+  _executeAttack(p,cards,type,tgt,targetIdx);
+}
+
+function _executeAttack(p,cards,type,tgt,tidx) {
+  const oneTimeActive=e=>!e.perm&&!e.used&&(p.isAI||activeOneTimeIds.has(e.id));
+  let numDice=Math.min(cards.length,6);
+  if(p.enhancements.some(e=>(e.name==='Friendly Bunny'||e.name==='Charmed Potion')&&oneTimeActive(e))) numDice=Math.min(numDice+1,6);
+  const rolls=Array.from({length:numDice},()=>DFACES[Math.floor(Math.random()*6)]);
+
+  let rerolled=null;
+  if(p.enhancements.some(e=>e.name==='Lucky Mushroom'&&!e.used)&&rolls.length>0){
+    const wi=rolls.indexOf(Math.min(...rolls));
+    const nr=DFACES[Math.floor(Math.random()*6)];
+    rerolled={i:wi,old:rolls[wi],nw:nr}; rolls[wi]=nr;
+  }
+
+  const total=rolls.reduce((a,b)=>a+b,0);
+  const bonus=calcBonus(p,type);
+  const final=total+bonus;
+  const req=tgt[type];
+  const win=final>=req;
+
+  p.enhancements.forEach(e=>{if(oneTimeActive(e))e.used=true;});
+  activeOneTimeIds=new Set();
+
+  pendingDice={type,rolls,rerolled,total,bonus,final,req,tgt,p,win,cards,tidx};
+  showDice();
+  pushState(); // push state with pendingDice so all clients see dice roll
+}
+
+function calcBonus(p,type) {
+  let b=0;
+  p.enhancements.forEach(e=>{
+    if(e.used) return;
+    const oneTimeOn=!e.perm?(p.isAI||activeOneTimeIds.has(e.id)):true;
+    if(!oneTimeOn) return;
+    const ef=e.eff.toLowerCase();
+    if(ef.includes('add 4'))                                      b+=4;
+    else if(e.name==='Cloak of Darkness')                         b+=2;
+    else if(ef.includes('add 2 points to all'))                   b+=2;
+    else if(ef.includes('add 1 point to all'))                    b+=1;
+    else if(ef.includes('+2 to all strikes')&&type==='strike')    b+=2;
+    else if(ef.includes('+2 to all stomps')&&type==='stomp')      b+=2;
+    else if(ef.includes('+2 to all screams')&&type==='scream')    b+=2;
+  });
+  return b;
+}
+
+function validate(cards,type) {
+  if(!cards.length)return{ok:false,why:'No cards'};
+  if(cards.length>6)return{ok:false,why:'Max 6'};
+  if(cards.length===1)return{ok:true};
+  if(type==='strike'){const ns=cards.map(c=>c.num).sort((a,b)=>a-b);for(let i=1;i<ns.length;i++)if(ns[i]!==ns[i-1]+1)return{ok:false,why:`Consecutive required: ${ns.join(',')}`};}
+  else if(type==='stomp'){if(new Set(cards.map(c=>c.num)).size!==1)return{ok:false,why:`Same number required`};}
+  else if(type==='scream'){if(new Set(cards.map(c=>c.suit)).size!==1)return{ok:false,why:`Same suit required`};}
+  return{ok:true};
+}
+
+function applyResult() {
+  const d=pendingDice; if(!d) return;
+  const p=d.p;
+  if(d.win){
+    d.cards.forEach(c=>{const i=p.hand.findIndex(h=>h.id===c.id);if(i!==-1)G.advDiscard.push(p.hand.splice(i,1)[0]);});
+    if(d.tgt.type==='creature'){p.captured.push(d.tgt);log(`✅ ${p.name} captured ${d.tgt.name}! (+${d.tgt.vp} VP)`,'ok');}
+    else{p.enhancements.push(d.tgt);log(`✅ ${p.name} obtained ${d.tgt.name}!`,'ok');}
+    G.landscape.splice(d.tidx,1);
+    fillLandscape(); checkOver(); clearSel();
+    if(!G.over) nextTurn();
+  } else {
+    log(`❌ ${p.name}'s attack failed! Must discard a wound card.`,'bad');
+    clearSel(); woundMode=true;
+    if(p.isAI){ render(); aiTimer=setTimeout(aiHandleWound,900); pendingDice=null; pushState(); return; }
+  }
+  pendingDice=null;
+  render(); pushState();
+  if(G.over) showGameOver();
+}
+
+function discardWound(cid) {
+  if(!woundMode) return;
+  const p=G.players[G.cur];
+  const i=p.hand.findIndex(c=>c.id===cid); if(i===-1) return;
+  G.advDiscard.push(p.hand.splice(i,1)[0]);
+  woundMode=false; nextTurn(); render(); pushState();
+}
+
+function checkOver() {
+  const all=G.players.flatMap(p=>p.captured);
+  if(all.some(c=>c.name==='Blue Dragon')&&all.some(c=>c.name==='Orange Dragon')){log('🐉 Both dragons slain!','ok');G.over=true;}
+}
+
+function nextTurn() {
+  if(!G.over){
+    G.cur=(G.cur+1)%G.players.length;
+    log(`— ${G.players[G.cur].name}'s turn —`);
+    if(!isOnline&&G.players[G.cur].isAI){ render(); scheduleAI(1100); }
+  }
+}
+
+function clearSel() { sel=[]; targetIdx=null; activeOneTimeIds=new Set(); }
+
+// ══════════════════════════════════════════════════════════
+// AI ENGINE
+// ══════════════════════════════════════════════════════════
+function scheduleAI(ms) { if(aiTimer)clearTimeout(aiTimer); showAIThinking(true); aiTimer=setTimeout(()=>{showAIThinking(false);aiTakeTurn();},ms); }
+function showAIThinking(on) { const el=document.getElementById('ai-thinking'); if(el)el.classList.toggle('show',on); }
+
+function bestStrike(hand) {
+  const byNum={}; hand.forEach(c=>{if(!byNum[c.num])byNum[c.num]=c;});
+  const nums=Object.keys(byNum).map(Number).sort((a,b)=>a-b);
+  let best=[],cur=[];
+  for(const n of nums){ if(!cur.length||n===cur[cur.length-1]+1)cur.push(n); else{if(cur.length>best.length)best=[...cur];cur=[n];} }
+  if(cur.length>best.length)best=cur;
+  if(best.length>6)best=best.slice(0,6);
+  return best.map(n=>byNum[n]);
+}
+function bestStomp(hand) { const g={}; hand.forEach(c=>{if(!g[c.num])g[c.num]=[];g[c.num].push(c);}); return(Object.values(g).sort((a,b)=>b.length-a.length)[0]||[]).slice(0,6); }
+function bestScream(hand){ const g={}; hand.forEach(c=>{if(!g[c.suit])g[c.suit]=[];g[c.suit].push(c);}); return(Object.values(g).sort((a,b)=>b.length-a.length)[0]||[]).slice(0,6); }
+function cardTargetValue(card){if(card.type==='creature'){let v=card.vp;if(card.dragon)v+=9;return v;}return ENH_VP[card.name]||1.5;}
+function pressureFactor(player){const myVP=player.captured.reduce((s,c)=>s+c.vp,0);const bestOpp=G.players.filter(p=>p!==player).reduce((b,op)=>Math.max(b,op.captured.reduce((s,c)=>s+c.vp,0)),0);const gap=bestOpp-myVP;if(gap>=7)return 1.4;if(gap>=4)return 1.2;if(gap>=2)return 1.1;return 1.0;}
+
+function aiDecide(player) {
+  const pressure=pressureFactor(player),handSize=player.hand.length,options=[];
+  const combos={strike:bestStrike(player.hand),stomp:bestStomp(player.hand),scream:bestScream(player.hand)};
+  G.landscape.forEach((card,idx)=>{
+    if(!card)return;
+    const val=cardTargetValue(card);
+    for(const[type,combo]of Object.entries(combos)){
+      if(!combo.length||!validate(combo,type).ok)continue;
+      let nd=Math.min(combo.length,6);
+      if(player.enhancements.some(e=>e.name==='Friendly Bunny'&&!e.used))nd=Math.min(nd+1,6);
+      const bonus=calcBonus(player,type),req=card[type];
+      const prob=pAtLeast(nd,Math.max(1,req-bonus));
+      const minProb=card.dragon?0.18:0.35;
+      if(prob<minProb/pressure)continue;
+      const ev=val*prob*pressure-1.0*(1-prob);
+      options.push({card,idx,type,combo,prob,ev,val,req,nd,bonus});
+    }
+  });
+  options.sort((a,b)=>b.ev-a.ev);
+  const best=options[0];
+  let comboImprovementVal=0;
+  if(best&&best.nd<6){const ip=pAtLeast(Math.min(best.nd+1,6),Math.max(1,best.req-best.bonus));comboImprovementVal=(ip-best.prob)*best.val*0.6;}
+  const baseReloadVal=handSize<=3?2.8:handSize<=4?1.8:handSize<=5?1.1:handSize<=7?0.55:0.15;
+  const reloadVal=baseReloadVal+comboImprovementVal;
+  if(handSize>=9&&best)return{action:'attack',...best};
+  if(!best||best.ev<reloadVal)return{action:'reload'};
+  return{action:'attack',...best};
+}
+
+function worstCard(hand) {
+  function syn(c){const sm=hand.filter(x=>x.suit===c.suit).length-1;const nm=hand.filter(x=>x.num===c.num).length-1;return Math.max(sm,nm);}
+  return hand.reduce((w,c)=>syn(c)<syn(w)?c:w,hand[0]);
+}
+
+function aiTakeTurn() {
+  if(G.over)return;
+  const p=G.players[G.cur]; if(!p.isAI)return;
+  const d=aiDecide(p);
+  if(d.action==='reload'){ log(`🤖 ${p.name} reloads.`,'ai'); deal(p); nextTurn(); render(); pushState(); return; }
+  const typeWord={strike:'Strikes',stomp:'Stomps',scream:'Screams'}[d.type];
+  log(`🤖 ${p.name} ${typeWord} at ${d.card.name} (${Math.round(d.prob*100)}%)`, 'ai');
+  sel=d.combo.map(c=>c.id); targetIdx=d.idx; render();
+  aiTimer=setTimeout(()=>_executeAttack(p,d.combo,d.type,d.card,d.idx),600);
+}
+
+function aiHandleWound() {
+  if(!woundMode)return;
+  const p=G.players[G.cur]; if(!p.hand.length){woundMode=false;nextTurn();render();pushState();return;}
+  const card=worstCard(p.hand);
+  log(`🤖 ${p.name} discards ${SSYMS[card.suit]}${SUITS[card.suit]}-${card.num} (wound).`,'ai');
+  G.advDiscard.push(...p.hand.splice(p.hand.indexOf(card),1));
+  woundMode=false; nextTurn(); render(); pushState();
+}
+
+// ══════════════════════════════════════════════════════════
+// DICE OVERLAY
+// ══════════════════════════════════════════════════════════
+function showDice() {
+  // Called by current player — animates the dice
+  showDiceFromPending(true);
+}
+
+function showDiceFromPending(animate=false) {
+  const d=pendingDice; if(!d) return;
+  const labels={strike:'⚔ Strike',stomp:'👢 Stomp',scream:'😱 Scream'};
+  const whoEl=document.getElementById('dice-who');
+  const lbl=document.getElementById('dice-atk-lbl');
+  const row=document.getElementById('dice-row');
+  const totEl=document.getElementById('dice-total');
+  const nedEl=document.getElementById('dice-needed');
+  const outEl=document.getElementById('dice-outcome');
+  const contBtn=document.getElementById('dice-continue');
+  const watchEl=document.getElementById('dice-watching');
+
+  whoEl.textContent=d.p.isAI?`🤖 ${d.p.name}`:`👤 ${d.p.name}`;
+  lbl.textContent=`${labels[d.type]} vs ${d.tgt.name}`;
+  row.innerHTML=''; contBtn.style.display='none';
+  totEl.textContent=''; nedEl.textContent=''; outEl.textContent=''; outEl.className='dice-outcome';
+
+  // Show continue button only to the current player (or if local)
+  const isMyCurrent = !isOnline || G.cur===myPlayerIdx;
+  watchEl.textContent = isOnline && !isMyCurrent ? '👀 Watching...' : '';
+
+  document.getElementById('dice-overlay').classList.add('show');
+
+  if (animate) {
+    let delay=0;
+    d.rolls.forEach((v,i)=>{
+      setTimeout(()=>{
+        const el=document.createElement('div');
+        el.className='die'+(d.rerolled&&d.rerolled.i===i?' rerolled':'');
+        el.textContent=v;
+        row.appendChild(el);
+        if(i===d.rolls.length-1){
+          setTimeout(()=>{
+            totEl.textContent=d.bonus?`${d.total} + ${d.bonus} bonus = ${d.final}`:`Total: ${d.final}`;
+            nedEl.textContent=`Needed: ${d.req} to ${d.type}`;
+            setTimeout(()=>{
+              if(d.win){outEl.textContent=`✅ Captured ${d.tgt.name}!`;outEl.classList.add('win');}
+              else{outEl.textContent=`❌ Failed (${d.final} < ${d.req})`;outEl.classList.add('lose');}
+              if(isMyCurrent) contBtn.style.display='inline-block';
+              if(d.p.isAI) diceAutoClose=setTimeout(closeDice,2000);
+            },350);
+          },250);
+        }
+      },delay); delay+=140;
+    });
+  } else {
+    // Instant display (received from Firebase, no animation)
+    d.rolls.forEach((v,i)=>{
+      const el=document.createElement('div');
+      el.className='die'+(d.rerolled&&d.rerolled.i===i?' rerolled':'');
+      el.textContent=v;
+      row.appendChild(el);
+    });
+    totEl.textContent=d.bonus?`${d.total} + ${d.bonus} bonus = ${d.final}`:`Total: ${d.final}`;
+    nedEl.textContent=`Needed: ${d.req} to ${d.type}`;
+    if(d.win){outEl.textContent=`✅ Captured ${d.tgt.name}!`;outEl.classList.add('win');}
+    else{outEl.textContent=`❌ Failed (${d.final} < ${d.req})`;outEl.classList.add('lose');}
+    if(isMyCurrent) contBtn.style.display='inline-block';
+  }
+}
+
+function closeDice() {
+  if(diceAutoClose){clearTimeout(diceAutoClose);diceAutoClose=null;}
+  // Only the current player can close
+  if(isOnline && G.cur!==myPlayerIdx) return;
+  document.getElementById('dice-overlay').classList.remove('show');
+  applyResult();
+}
+
+// ══════════════════════════════════════════════════════════
+// GAME OVER
+// ══════════════════════════════════════════════════════════
+function showGameOver() {
+  const scores=G.players.map(p=>({name:p.name,isAI:p.isAI,base:p.captured.reduce((s,c)=>s+c.vp,0),cards:p.captured.length,orange:p.captured.some(c=>c.name==='Orange Dragon')}));
+  const maxCards=Math.max(...scores.map(s=>s.cards));
+  const bonus=scores.filter(s=>s.cards===maxCards).length===1?3:2;
+  scores.forEach(s=>{s.bonus=s.cards===maxCards?bonus:0;s.total=s.base+s.bonus;});
+  scores.sort((a,b)=>b.total-a.total||(b.orange?1:-1));
+  const w=scores[0];
+  document.getElementById('go-winner').textContent=`🏆 ${w.isAI?'🤖':'👤'} ${w.name} wins with ${w.total} VP!`;
+  const tb=document.getElementById('go-tbody'); tb.innerHTML='';
+  scores.forEach((s,i)=>{const tr=document.createElement('tr');if(i===0)tr.className='w';tr.innerHTML=`<td>${i===0?'👑 ':''}${s.isAI?'🤖 ':''}${s.name}</td><td>${s.base}</td><td>${s.cards}</td><td>${s.bonus>0?'+'+s.bonus:'—'}</td><td>${s.total}</td>`;tb.appendChild(tr);});
+  document.getElementById('gameover-overlay').classList.add('show');
+}
+
+function resetToLanding() {
+  if(aiTimer)clearTimeout(aiTimer);
+  document.getElementById('gameover-overlay').classList.remove('show');
+  if(stateListener){db.ref(`rooms/${roomId}/gameState`).off('value',stateListener);stateListener=null;}
+  if(metaListener){db.ref(`rooms/${roomId}/meta`).off('value',metaListener);metaListener=null;}
+  isOnline=false; roomId=null; myPlayerIdx=-1;
+  clearSavedSession();
+  showScreen('landing');
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════
+function render() {
+  if(!G) return;
+  const p=G.players[G.cur];
+  const myTurn=isMyTurn();
+  const aiTurn=isAITurn();
+
+  // Topbar turn indicator
+  const tb=document.getElementById('tb-turn');
+  if(woundMode&&myTurn)       { tb.textContent=`⚠ You must discard a wound card`;      tb.className='tb-turn wound-turn'; }
+  else if(woundMode&&!myTurn) { tb.textContent=`⚠ ${p.name} is discarding a wound...`; tb.className='tb-turn not-my-turn'; }
+  else if(aiTurn)             { tb.textContent=`🤖 ${p.name} is thinking...`;           tb.className='tb-turn ai-turn'; }
+  else if(myTurn)             { tb.textContent=`👤 Your Turn`;                           tb.className='tb-turn'; }
+  else                        { tb.textContent=`⏳ ${p.name}'s turn...`;                tb.className='tb-turn not-my-turn'; }
+
+  document.getElementById('tb-decks').textContent=`🃏 ${G.dwDeck.length} left  |  📚 ${G.advDecksUsed}/2`;
+  document.getElementById('tb-room').textContent=isOnline?`Room: ${roomId}`:'';
+
+  // Score chips
+  document.getElementById('score-chips').innerHTML=G.players.map((pl,i)=>{
+    const vp=pl.captured.reduce((s,c)=>s+c.vp,0);
+    const isMe=isOnline&&i===myPlayerIdx;
+    const act=i===G.cur?' active':'';
+    const cls=pl.isAI?` ai-chip${act}`:isMe?` me-chip${act}`:act;
+    return `<span class="chip${cls}">${pl.isAI?'🤖':isMe?'⭐':'👤'} ${pl.name}: ${vp} VP</span>`;
+  }).join('');
+
+  renderLandscape(myTurn);
+  renderSelInfo(p,myTurn);
+  document.getElementById('wound-banner').classList.toggle('show',woundMode&&myTurn&&!aiTurn);
+  document.getElementById('ai-thinking').classList.toggle('show',aiTurn&&!isOnline);
+  document.getElementById('waiting-turn-banner').classList.toggle('show',isOnline&&!myTurn&&!aiTurn&&!woundMode);
+
+  // Show hand of current player (in online: always show MY hand)
+  const handPlayer = isOnline ? G.players[myPlayerIdx] : p;
+  document.getElementById('hand-lbl').textContent=isOnline ? 'Your Hand (' + handPlayer.hand.length + '/9)' : p.name + "'s Hand (" + handPlayer.hand.length + '/9)';
+  renderHand(handPlayer, myTurn);
+  renderEnh(myTurn);
+
+  const lb=document.getElementById('log-box');
+  lb.innerHTML=logs.slice(-30).map(({msg,cls})=>`<div class="log-entry${cls?' log-'+cls:''}">${escH(msg)}</div>`).join('');
+  lb.scrollTop=lb.scrollHeight;
+}
+
+function escH(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderLandscape(myTurn) {
+  const row=document.getElementById('landscape-row');
+  row.innerHTML='';
+  G.landscape.forEach((c,i)=>{
+    if(!c) return;
+    const div=document.createElement('div');
+    const targeted=i===targetIdx;
+    const aiEye=isAITurn()&&targeted;
+    div.className=`dw-card ${c.type==='creature'?'creature':'enhance'}${targeted?(aiEye?' ai-eyeing':' targeted'):''} ${!myTurn||isAITurn()?'not-my-turn':''}`;
+    const atkGrid=`<div class="c-divider"></div><div class="attack-grid"><div class="atk-row atk-strike"><span class="atk-lbl">⚔ Strike</span><span class="atk-num">${c.strike}</span></div><div class="atk-row atk-stomp"><span class="atk-lbl">👢 Stomp</span><span class="atk-num">${c.stomp}</span></div><div class="atk-row atk-scream"><span class="atk-lbl">😱 Scream</span><span class="atk-num">${c.scream}</span></div></div>`;
+    if(c.type==='creature') div.innerHTML=`<div class="c-badge">Creature</div><div class="c-name">${escH(c.name)}</div><div class="c-vp">🏆 ${c.vp} VP</div>${atkGrid}`;
+    else div.innerHTML=`<div class="c-badge">Enhancement</div><div class="c-name">${escH(c.name)}</div><div class="c-perm">${c.perm?'★ Permanent':'◆ One-time'}</div><div class="c-effect">${escH(c.eff)}</div>${atkGrid}`;
+    div.addEventListener('click',()=>{
+      if(!myTurn||woundMode||isAITurn())return;
+      targetIdx=(targetIdx===i)?null:i; render();
+    });
+    row.appendChild(div);
+  });
+}
+
+function renderHand(p, myTurn) {
+  const row=document.getElementById('hand-row'); row.innerHTML='';
+  p.hand.forEach(c=>{
+    const div=document.createElement('div');
+    div.className=`adv-card s${c.suit}${sel.includes(c.id)?' selected':''}${woundMode&&myTurn?' in-wound':''}${!myTurn?' no-interact':''}`;
+    div.innerHTML=`<div class="adv-num">${c.num}</div><div class="adv-suit">${SSYMS[c.suit]} ${SUITS[c.suit]}</div>`;
+    div.addEventListener('click',()=>{
+      if(!myTurn||isAITurn())return;
+      if(woundMode){discardWound(c.id);return;}
+      const i=sel.indexOf(c.id);
+      if(i!==-1)sel.splice(i,1); else if(sel.length<6)sel.push(c.id);
+      render();
+    });
+    row.appendChild(div);
+  });
+}
+
+function renderSelInfo(p,myTurn) {
+  const el=document.getElementById('sel-info');
+  if(!myTurn&&isOnline){el.textContent=`Watching ${p.name}'s turn...`;return;}
+  if(isAITurn()){el.textContent='🤖 AI is deciding...';return;}
+  if(woundMode){el.innerHTML='<span style="color:#ff8888">⚠ Click a card to discard as a wound.</span>';return;}
+  if(!sel.length){el.textContent='Select cards from your hand, then choose an attack — or Reload.';return;}
+  const myP = isOnline?G.players[myPlayerIdx]:p;
+  const cards=myP.hand.filter(c=>sel.includes(c.id));
+  const cardStr=cards.map(c=>`${SSYMS[c.suit]}<b>${c.num}</b>`).join(' ');
+  const tgt=targetIdx!==null?G.landscape[targetIdx]:null;
+  const tgtStr=tgt?` → targeting <b>${escH(tgt.name)}</b>`:'  → click a Landscape card to target';
+  el.innerHTML=cardStr+tgtStr;
+}
+
+function renderEnh(myTurn) {
+  const el=document.getElementById('enh-panel'); el.innerHTML='';
+  let any=false;
+  const curPlayer = isOnline ? G.players[myPlayerIdx] : G.players[G.cur];
+
+  G.players.forEach(p=>{
+    if(!p.enhancements.length)return; any=true;
+    const ownerDiv=document.createElement('div'); ownerDiv.className='enh-owner';
+    ownerDiv.textContent=(p.isAI?'🤖 ':isOnline&&G.players.indexOf(p)===myPlayerIdx?'⭐ ':'👤 ')+p.name;
+    el.appendChild(ownerDiv);
+
+    p.enhancements.forEach(e=>{
+      const item=document.createElement('div'); item.className='enh-item'+(e.used?' used':'');
+      const isMe=p===curPlayer&&myTurn;
+      const canToggle=isMe&&!e.perm&&!e.used&&!woundMode;
+      const isOn=activeOneTimeIds.has(e.id);
+      item.innerHTML=`<div class="enh-name">${escH(e.name)}${e.used?' <span style="opacity:.5">(spent)</span>':''}</div><div class="enh-eff">${escH(e.eff)}</div><div class="enh-tag">${e.perm?'★ Permanent — always active':'◆ One-time use'}</div>`;
+      if(canToggle){
+        const btn=document.createElement('button'); btn.className='enh-use-btn'+(isOn?' btn-active':'');
+        btn.textContent=isOn?'✓ Active for next attack':'+ Use on next attack';
+        btn.addEventListener('click',()=>{if(activeOneTimeIds.has(e.id))activeOneTimeIds.delete(e.id);else activeOneTimeIds.add(e.id);render();});
+        item.appendChild(btn);
+      }
+      el.appendChild(item);
+    });
+  });
+  if(!any) el.innerHTML='<div class="no-enh">No enhancements yet</div>';
+}
+
+// On page load: check if we have a saved session and auto-navigate to online screen
+window.addEventListener('load', async () => {
+  const saved = getSavedSession();
+  if (saved && saved.roomId && saved.myName) {
+    showScreen('lobby-create-pre'); // this triggers checkForRejoin()
+  }
+});
+</script>
+</body>
+</html>
